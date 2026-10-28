@@ -2,11 +2,12 @@ import asyncio
 from pathlib import Path
 
 from google.cloud import storage
+from google.cloud.exceptions import NotFound
 from google.oauth2 import service_account
 
 from . import logger
-from .base_storage import BaseCloudStorage
-from .exceptions import DeleteError, DownloadError, UploadError
+from .base_storage import BaseCloudStorage, guess_content_type
+from .exceptions import DeleteError, DownloadError, ListError, NotFoundError, UploadError
 from .storage_schema import StorageConfig
 
 
@@ -75,7 +76,46 @@ class GcpClientStorage(BaseCloudStorage):
             return await asyncio.to_thread(self._upload_file, file_path, cloud_path)
         except Exception as e:
             logger.error(f"Upload failed: {e}")
-            raise UploadError(f"Failed to upload file to GCP: {e}")
+            raise UploadError(f"Failed to upload file to GCP: {e}") from e
+
+    async def upload_bytes(
+        self, data: bytes, cloud_path: str, content_type: str | None = None
+    ) -> str:
+        """Upload in-memory bytes to the GCP bucket; returns the object path."""
+        logger.info(f"Uploading {len(data)} bytes to gs://{self.bucket_name}/{cloud_path}")
+        content_type = content_type or guess_content_type(cloud_path)
+        try:
+            await asyncio.to_thread(
+                self.bucket.blob(cloud_path).upload_from_string, data, content_type=content_type
+            )
+            return cloud_path
+        except Exception as e:
+            logger.error(f"Upload failed: {e}")
+            raise UploadError(f"Failed to upload bytes to GCP: {e}") from e
+
+    async def download_bytes(self, cloud_path: str) -> bytes:
+        """Download the GCP object's content."""
+        logger.info(f"Downloading gs://{self.bucket_name}/{cloud_path}")
+        try:
+            return await asyncio.to_thread(self.bucket.blob(cloud_path).download_as_bytes)
+        except NotFound as e:
+            raise NotFoundError(f"GCP object not found: {cloud_path}") from e
+        except Exception as e:
+            logger.error(f"Download failed: {e}")
+            raise DownloadError(f"Failed to download file from GCP: {e}") from e
+
+    async def list_objects(self, prefix: str) -> list[str]:
+        """List GCP object names under `prefix`."""
+        return list(await self.list_object_sizes(prefix))
+
+    async def list_object_sizes(self, prefix: str) -> dict[str, int]:
+        """GCP object name -> size in bytes under `prefix`."""
+        logger.info(f"Listing gs://{self.bucket_name}/{prefix}")
+        try:
+            return await asyncio.to_thread(self._list_sizes, prefix)
+        except Exception as e:
+            logger.error(f"Listing failed: {e}")
+            raise ListError(f"Failed to list objects in GCP: {e}") from e
 
     async def delete(self, cloud_path: str) -> bool:
         """Delete a file from Google Cloud Storage bucket.
@@ -84,7 +124,7 @@ class GcpClientStorage(BaseCloudStorage):
             cloud_path: The object path in GCP bucket to delete.
 
         Returns:
-            True if deletion was successful.
+            True if deleted, False if the object did not exist.
 
         Raises:
             DeleteError: If the deletion operation fails.
@@ -94,7 +134,7 @@ class GcpClientStorage(BaseCloudStorage):
             return await asyncio.to_thread(self._delete_file, cloud_path)
         except Exception as e:
             logger.error(f"Deletion failed: {e}")
-            raise DeleteError(f"Failed to delete file from GCP: {e}")
+            raise DeleteError(f"Failed to delete file from GCP: {e}") from e
 
     async def get_public_url(self, cloud_path: str, expiration: int = 3600) -> str:
         """Generate a temporary signed URL for accessing a private GCP object.
@@ -114,7 +154,7 @@ class GcpClientStorage(BaseCloudStorage):
             return await asyncio.to_thread(self._generate_signed_url, cloud_path, expiration)
         except Exception as e:
             logger.error(f"Failed to generate signed URL: {e}")
-            raise DownloadError(f"Failed to generate signed URL: {e}")
+            raise DownloadError(f"Failed to generate signed URL: {e}") from e
 
     def _upload_file(self, file_path: str | Path, cloud_path: str) -> str:
         """Perform synchronous file upload to GCP bucket.
@@ -142,12 +182,22 @@ class GcpClientStorage(BaseCloudStorage):
             cloud_path: Object path in GCP bucket to delete.
 
         Returns:
-            True if deletion was successful.
+            True if deleted, False if the object did not exist.
         """
-        blob = self.bucket.blob(cloud_path)
-        blob.delete()
+        try:
+            self.bucket.blob(cloud_path).delete()
+        except NotFound:
+            return False
         logger.debug(f"Successfully deleted gs://{self.bucket_name}/{cloud_path}")
         return True
+
+    def _list_sizes(self, prefix: str) -> dict[str, int]:
+        """Name -> size for every object under `prefix`.
+
+        `list_blobs` pages lazily over HTTP as it is iterated, so it is drained here on the
+        worker thread rather than back on the event loop.
+        """
+        return {b.name: b.size or 0 for b in self.bucket.list_blobs(prefix=prefix)}
 
     def _generate_signed_url(self, cloud_path: str, expiration: int) -> str:
         """Generate a signed URL for temporary object access.
