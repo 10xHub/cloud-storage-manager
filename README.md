@@ -8,18 +8,17 @@ calls the same methods everywhere; switching cloud is a configuration change.
 - One interface for AWS S3, Google Cloud Storage and Azure Blob Storage
 - Async operations
 - Upload from a file or from bytes, download, list, delete, signed read URLs
-- Content types are stored on upload, so a signed video URL plays in a browser
+- `upload_bytes` stores a content type, so a signed video URL plays in a browser
 - Type-safe configuration using Pydantic
-- Install only the cloud you use
+- A drop-in upgrade from 0.1.x (see below)
 
 ## Installation
 
-Pick the extra for your cloud:
+The base install covers AWS S3 and Google Cloud Storage, as 0.1.x did. Azure is an extra:
 
 ```bash
-pip install "cloud-storage-manager[aws]"    # AWS S3
-pip install "cloud-storage-manager[gcp]"    # Google Cloud Storage
-pip install "cloud-storage-manager[azure]"  # Azure Blob Storage
+pip install cloud-storage-manager           # AWS S3 + Google Cloud Storage
+pip install "cloud-storage-manager[azure]"  # adds Azure Blob Storage
 pip install "cloud-storage-manager[all]"    # all three
 ```
 
@@ -44,7 +43,7 @@ async def main(config: StorageConfig):
 
     url = await storage.get_public_url("recordings/clip.mp4", expiration=3600)
 
-    deleted = await storage.delete("notes/a.md")  # False if it was already gone
+    deleted = await storage.delete_if_exists("notes/a.md")  # False if it was already gone
 ```
 
 `CloudStorageFactory.from_config` picks the provider from the config.
@@ -52,8 +51,9 @@ async def main(config: StorageConfig):
 
 ## Configuration
 
-A `StorageConfig` sets exactly one provider; zero or two is a validation error.
-`config.provider` returns the `StorageProvider` it sets.
+`CloudStorageFactory.get_storage(provider, config)` uses the provider you name, so a config may
+hold more than one. `config.provider` and `from_config` infer it, and raise `ValueError` unless
+exactly one is set.
 
 ### AWS S3
 
@@ -65,7 +65,7 @@ config = StorageConfig(
         bucket_name="my-bucket",
         access_key_id="...",
         secret_access_key="...",
-        region="us-east-1",  # optional, defaults to us-east-1
+        region="us-east-1",  # stored but not used; boto resolves the region, as in 0.1.x
     )
 )
 ```
@@ -111,12 +111,13 @@ Every provider implements `BaseCloudStorage`:
 
 | Method | Returns | Notes |
 | --- | --- | --- |
-| `upload(file_path, cloud_path)` | `str` | Content type guessed from the file name |
+| `upload(file_path, cloud_path)` | `str` | GCP and Azure type the object from its file name; S3 does not (0.1.x behaviour) |
 | `upload_bytes(data, cloud_path, content_type=None)` | `str` | Content type guessed from `cloud_path` when omitted |
 | `download_bytes(cloud_path)` | `bytes` | `NotFoundError` if missing |
 | `list_objects(prefix)` | `list[str]` | Every page |
 | `list_object_sizes(prefix)` | `dict[str, int]` | Name to size in bytes |
-| `delete(cloud_path)` | `bool` | `False` if it did not exist |
+| `delete(cloud_path)` | `bool` | 0.1.x behaviour: a missing object raises `DeleteError` on GCP and Azure, returns `True` on S3 |
+| `delete_if_exists(cloud_path)` | `bool` | `False` if it did not exist, on every cloud |
 | `get_public_url(cloud_path, expiration=3600)` | `str` | Signed, read-only, expires after `expiration` seconds |
 
 ## Error handling
@@ -135,10 +136,15 @@ except NotFoundError:
 
 ## Upgrading from 0.1.x
 
-- Install with an extra (`[aws]`, `[gcp]`, `[azure]` or `[all]`); the base package no longer
-  pulls in any cloud SDK.
-- `StorageConfig` with no provider, or more than one, now fails validation.
-- `delete` returns `False` for a missing object instead of raising.
+Nothing to change: every 0.1.x call behaves as before.
+
+- The base install pulls the same packages as 0.1.x; Azure is the `[azure]` extra.
+- `StorageConfig` accepts every combination 0.1.x accepted.
+- `upload`, `delete` and `get_public_url` behave as in 0.1.x on S3 and GCP; the new
+  `delete_if_exists` is the one to use for the same answer on every cloud.
+- Only those three methods are abstract, so a subclass written for 0.1.x still instantiates.
+- `AWSClientStorage` and `GcpClientStorage` are still importable from
+  `cloud_storage_manager.storage_provider`.
 - Python 3.10+ (0.1.x already used 3.10 syntax and did not import on 3.8 or 3.9).
 
 ## Development
