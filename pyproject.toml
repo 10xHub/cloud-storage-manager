@@ -4,42 +4,62 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "cloud-storage-manager"
-version = "0.1.2"
-description = "A unified interface for AWS S3 and Google Cloud Storage operations"
+version = "0.2.0"
+description = "A unified async interface for AWS S3, Google Cloud Storage and Azure Blob Storage"
 authors = [{name = "MUTHARASU A", email = "mutharasu39@gmail.com"}]
 license = {file = "LICENSE"}
 readme = "README.md"
-requires-python = ">=3.8"
-keywords = ["aws", "s3", "gcp", "cloud storage", "file upload", "async"]
+requires-python = ">=3.10"
+keywords = ["aws", "s3", "gcp", "azure", "blob", "cloud storage", "file upload", "async"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Framework :: AsyncIO",
-    "Topic :: Internet :: File Transfer Protocol (FTP)",
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 dependencies = [
-    "aioboto3>=11.0.0",
-    "google-cloud-storage>=2.0.0",
     "pydantic>=2.0.0"
 ]
 
 [project.optional-dependencies]
+aws = ["aioboto3>=11.0.0"]
+gcp = ["google-cloud-storage>=2.0.0"]
+# The async Blob client needs an async transport, and aiohttp is the one it supports.
+azure = ["azure-storage-blob>=12.19.0", "aiohttp>=3.8.0"]
+all = ["cloud-storage-manager[aws,gcp,azure]"]
 dev = [
+    "cloud-storage-manager[all]",
     "pytest>=7.0.0",
-    "pytest-asyncio>=0.20.0",
-    "mypy>=1.0.0",
-    "black>=22.0.0",
-    "isort>=5.0.0",
-    "flake8>=6.0.0"
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.5.0"
 ]
 
 [project.urls]
 "Homepage" = "https://github.com/10XScale-in/cloud-storage-manager"
 "Bug Tracker" = "https://github.com/10XScale-in/cloud-storage-manager/issues"
+
+[tool.setuptools.packages.find]
+include = ["cloud_storage_manager*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["cloud_storage_manager"]
+branch = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]

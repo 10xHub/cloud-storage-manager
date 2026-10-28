@@ -20,3 +20,7 @@ class NotFoundError(CloudStorageError):
 
 class AuthorizationError(CloudStorageError):
     """Authorization/Authentication failed"""
+
+
+class ListError(CloudStorageError):
+    """Error occurred while listing objects"""
