@@ -1,9 +1,7 @@
 include README.md
 include LICENSE
-include requirements.txt
-include setup.cfg
 include pyproject.toml
-recursive-include cloud_storage_manager *
+recursive-include cloud_storage_manager *.py
 global-exclude *.pyc
 global-exclude __pycache__
 global-exclude .DS_Store
