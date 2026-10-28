@@ -1,37 +1,27 @@
-from enum import Enum
+from importlib import import_module
 
-from .aws_s3_storage import AWSClientStorage
 from .base_storage import BaseCloudStorage
-from .gcp_storage import GcpClientStorage
-from .storage_schema import StorageConfig
+from .storage_schema import StorageConfig, StorageProvider
 
-
-class StorageProvider(Enum):
-    """Enumeration of supported cloud storage providers."""
-
-    AWS = "aws"
-    GCP = "gcp"
+__all__ = ["CloudStorageFactory", "StorageProvider"]
 
 
 class CloudStorageFactory:
     """Factory class for creating cloud storage client instances.
 
-    This class manages the mapping between storage providers and their
-    implementations, providing a centralized way to instantiate storage clients.
-
-    Attributes:
-        _providers: A dictionary mapping StorageProvider enums to their
-            corresponding implementation classes.
+    Each provider module is imported only when it is asked for, so installing a
+    single cloud's extra (``cloud-storage-manager[gcp]``) is enough to use it.
 
     Example:
-        >>> config = StorageConfig(...)
-        >>> storage = CloudStorageFactory.get_storage(StorageProvider.AWS, config)
-        >>> storage.upload_file(...)
+        >>> config = StorageConfig(gcp=GcpConfig(...))
+        >>> storage = CloudStorageFactory.from_config(config)
+        >>> await storage.upload_bytes(b"...", "remote/path.txt", "text/plain")
     """
 
-    _providers: dict[StorageProvider, type[BaseCloudStorage]] = {
-        StorageProvider.AWS: AWSClientStorage,
-        StorageProvider.GCP: GcpClientStorage,
+    _providers: dict[StorageProvider, tuple[str, str]] = {
+        StorageProvider.AWS: (".aws_s3_storage", "AWSClientStorage"),
+        StorageProvider.GCP: (".gcp_storage", "GcpClientStorage"),
+        StorageProvider.AZURE: (".azure_storage", "AzureBlobStorage"),
     }
 
     @classmethod
@@ -39,7 +29,7 @@ class CloudStorageFactory:
         """Creates and returns a cloud storage instance for the specified provider.
 
         Args:
-            provider: The cloud storage provider to use (AWS or GCP).
+            provider: The cloud storage provider to use.
             config: Configuration parameters for initializing the storage client.
 
         Returns:
@@ -47,8 +37,22 @@ class CloudStorageFactory:
 
         Raises:
             ValueError: If the specified provider is not supported.
+            ImportError: If the provider's extra is not installed.
         """
-        storage_class = cls._providers.get(provider)
-        if not storage_class:
+        target = cls._providers.get(provider)
+        if not target:
             raise ValueError(f"Unsupported storage provider: {provider}")
-        return storage_class(config)
+        module_name, class_name = target
+        try:
+            module = import_module(module_name, __package__)
+        except ImportError as e:
+            raise ImportError(
+                f"{provider.value} storage needs its extra: "
+                f"pip install 'cloud-storage-manager[{provider.value}]'"
+            ) from e
+        return getattr(module, class_name)(config)
+
+    @classmethod
+    def from_config(cls, config: StorageConfig) -> BaseCloudStorage:
+        """Creates the storage client for whichever provider the config sets."""
+        return cls.get_storage(config.provider, config)
