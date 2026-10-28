@@ -124,8 +124,14 @@ class AzureBlobStorage(BaseCloudStorage):
             raise ListError(f"Failed to list blobs in Azure: {e}") from e
 
     async def delete(self, cloud_path: str) -> bool:
+        """Delete a blob; a missing blob raises DeleteError, as GCP's delete does."""
+        if not await self.delete_if_exists(cloud_path):
+            raise DeleteError(f"Failed to delete blob from Azure: {cloud_path} does not exist")
+        return True
+
+    async def delete_if_exists(self, cloud_path: str) -> bool:
         """Delete a blob; False when it did not exist."""
-        logger.info(f"Deleting azure://{self.container_name}/{cloud_path}")
+        logger.info(f"Deleting azure://{self.container_name}/{cloud_path} if it exists")
         try:
             async with self._service_client() as client:
                 await client.get_blob_client(self.container_name, cloud_path).delete_blob()

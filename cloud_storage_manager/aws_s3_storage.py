@@ -37,11 +37,11 @@ class AWSClientStorage(BaseCloudStorage):
         if not config.aws:
             raise ValueError("AWS configuration is required")
         super().__init__(config)
-        # Presigned URLs are signed for a region; the bucket's own region avoids a redirect.
+        # `region` is deliberately not passed: 0.1.x let boto resolve the region from the
+        # environment, and forcing the field's us-east-1 default would re-sign callers' URLs.
         self.session = aioboto3.Session(
             aws_access_key_id=config.aws.access_key_id,
             aws_secret_access_key=config.aws.secret_access_key,
-            region_name=config.aws.region,
         )
         self.bucket = config.aws.bucket_name
         logger.info(f"AWSClientStorage initialized with bucket: {self.bucket}")
@@ -103,8 +103,25 @@ class AWSClientStorage(BaseCloudStorage):
                 raise ListError(f"Failed to list objects in S3: {e}") from e
 
     async def delete(self, cloud_path: str) -> bool:
-        """Delete a file from the S3 bucket; False when it did not exist."""
+        """Delete a file from the S3 bucket; True even for a missing key, as S3 answers."""
         logger.info(f"Deleting s3://{self.bucket}/{cloud_path}")
+        return await self.delete_file(cloud_path)
+
+    async def delete_if_exists(self, cloud_path: str) -> bool:
+        """Delete an S3 object; False when it did not exist."""
+        logger.info(f"Deleting s3://{self.bucket}/{cloud_path} if it exists")
+        async with self.session.client("s3") as s3:
+            try:
+                # S3 deletes a missing key without complaint, so existence is checked first.
+                await s3.head_object(Bucket=self.bucket, Key=cloud_path)
+            except ClientError as e:
+                if _is_missing(e):
+                    return False
+                logger.error(f"Deletion failed: {e}")
+                raise DeleteError(f"Failed to delete file from S3: {e}") from e
+            except Exception as e:
+                logger.error(f"Deletion failed: {e}")
+                raise DeleteError(f"Failed to delete file from S3: {e}") from e
         return await self.delete_file(cloud_path)
 
     async def get_public_url(self, cloud_path: str, expiration: int = 3600) -> str:
@@ -125,13 +142,14 @@ class AWSClientStorage(BaseCloudStorage):
 
     # Helper methods
     async def upload_file(self, file_path: Path | str, cloud_path: str) -> str:
-        """Internal method to handle file upload to S3."""
-        content_type = guess_content_type(file_path)
-        extra = {"ExtraArgs": {"ContentType": content_type}} if content_type else {}
+        """Internal method to handle file upload to S3.
+
+        No ContentType is sent, as in 0.1.x, so objects keep the type S3 assigned them before.
+        """
         async with self.session.client("s3") as s3:
             try:
                 with Path(file_path).open("rb") as file_obj:
-                    await s3.upload_fileobj(file_obj, self.bucket, cloud_path, **extra)
+                    await s3.upload_fileobj(file_obj, self.bucket, cloud_path)
                     logger.debug(f"Successfully uploaded to s3://{self.bucket}/{cloud_path}")
                 return cloud_path
             except Exception as e:
@@ -142,16 +160,9 @@ class AWSClientStorage(BaseCloudStorage):
         """Internal method to handle file deletion from S3."""
         async with self.session.client("s3") as s3:
             try:
-                # S3 deletes a missing key without complaint, so existence is checked first.
-                await s3.head_object(Bucket=self.bucket, Key=cloud_path)
                 await s3.delete_object(Bucket=self.bucket, Key=cloud_path)
                 logger.debug(f"Successfully deleted s3://{self.bucket}/{cloud_path}")
                 return True
-            except ClientError as e:
-                if _is_missing(e):
-                    return False
-                logger.error(f"Deletion failed: {e}")
-                raise DeleteError(f"Failed to delete file from S3: {e}") from e
             except Exception as e:
                 logger.error(f"Deletion failed: {e}")
                 raise DeleteError(f"Failed to delete file from S3: {e}") from e

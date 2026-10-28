@@ -124,9 +124,26 @@ async def test_delete_existing_returns_true(storage, blob):
     blob.delete.assert_called_once_with()
 
 
-async def test_delete_missing_returns_false(storage, blob):
+async def test_delete_missing_raises_delete_error_as_0_1_did(storage, blob):
     blob.delete.side_effect = NotFound("gone")
-    assert await storage.delete("a") is False
+    with pytest.raises(DeleteError, match="gone"):
+        await storage.delete("a")
+
+
+async def test_delete_if_exists_existing_returns_true(storage, blob):
+    assert await storage.delete_if_exists("a") is True
+    blob.delete.assert_called_once_with()
+
+
+async def test_delete_if_exists_missing_returns_false(storage, blob):
+    blob.delete.side_effect = NotFound("gone")
+    assert await storage.delete_if_exists("a") is False
+
+
+async def test_delete_if_exists_failure(storage, blob):
+    blob.delete.side_effect = RuntimeError("denied")
+    with pytest.raises(DeleteError, match="denied"):
+        await storage.delete_if_exists("a")
 
 
 async def test_delete_failure(storage, blob):

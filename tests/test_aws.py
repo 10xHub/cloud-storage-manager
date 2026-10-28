@@ -38,11 +38,10 @@ def storage(session_cls):
     return AWSClientStorage(aws_config())
 
 
-def test_init_passes_credentials_and_region(session_cls, storage):
+def test_init_passes_credentials_but_not_region_as_0_1_did(session_cls, storage):
     session_cls.assert_called_once_with(
         aws_access_key_id="test-access-key",
         aws_secret_access_key="test-secret",
-        region_name="ap-south-1",
     )
     assert storage.bucket == BUCKET
 
@@ -52,14 +51,14 @@ def test_init_requires_aws_config():
         AWSClientStorage(gcp_config())
 
 
-async def test_upload_sends_guessed_content_type(storage, s3, sample_file):
+async def test_upload_sends_no_content_type_as_0_1_did(storage, s3, sample_file):
     assert await storage.upload(sample_file, "videos/clip.mp4") == "videos/clip.mp4"
     args, kwargs = s3.upload_fileobj.call_args
     assert args[1:] == (BUCKET, "videos/clip.mp4")
-    assert kwargs == {"ExtraArgs": {"ContentType": "video/mp4"}}
+    assert kwargs == {}
 
 
-async def test_upload_accepts_str_path_and_unknown_type(storage, s3, untyped_file):
+async def test_upload_accepts_str_path(storage, s3, untyped_file):
     await storage.upload(str(untyped_file), "x/blob")
     assert s3.upload_fileobj.call_args.kwargs == {}
 
@@ -144,24 +143,38 @@ async def test_list_failure_raises_list_error(storage, s3):
         await storage.list_objects("p/")
 
 
-async def test_delete_existing_returns_true(storage, s3):
+async def test_delete_sends_one_request_and_returns_true_as_0_1_did(storage, s3):
     assert await storage.delete("a") is True
+    s3.head_object.assert_not_awaited()
+    s3.delete_object.assert_awaited_once_with(Bucket=BUCKET, Key="a")
+
+
+@pytest.mark.parametrize("error", [client_error("AccessDenied"), RuntimeError("reset")])
+async def test_delete_failures_raise_delete_error(storage, s3, error):
+    s3.delete_object.side_effect = error
+    with pytest.raises(DeleteError):
+        await storage.delete("a")
+
+
+async def test_delete_if_exists_deletes_an_existing_key(storage, s3):
+    assert await storage.delete_if_exists("a") is True
     s3.head_object.assert_awaited_once_with(Bucket=BUCKET, Key="a")
     s3.delete_object.assert_awaited_once_with(Bucket=BUCKET, Key="a")
 
 
 @pytest.mark.parametrize("code", ["404", "NoSuchKey", "NotFound"])
-async def test_delete_missing_returns_false(storage, s3, code):
+async def test_delete_if_exists_missing_returns_false(storage, s3, code):
     s3.head_object.side_effect = client_error(code)
-    assert await storage.delete("gone") is False
+    assert await storage.delete_if_exists("gone") is False
     s3.delete_object.assert_not_awaited()
 
 
 @pytest.mark.parametrize("error", [client_error("AccessDenied"), RuntimeError("reset")])
-async def test_delete_other_failures_raise_delete_error(storage, s3, error):
-    s3.delete_object.side_effect = error
+async def test_delete_if_exists_head_failures_raise_delete_error(storage, s3, error):
+    s3.head_object.side_effect = error
     with pytest.raises(DeleteError):
-        await storage.delete("a")
+        await storage.delete_if_exists("a")
+    s3.delete_object.assert_not_awaited()
 
 
 async def test_get_public_url_presigns_a_get(storage, s3):
