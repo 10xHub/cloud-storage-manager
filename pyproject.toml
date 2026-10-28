@@ -23,11 +23,15 @@ classifiers = [
     "Framework :: AsyncIO",
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
+# The 0.1.x base install, unchanged, so an unpinned `cloud-storage-manager` keeps working.
 dependencies = [
+    "aioboto3>=11.0.0",
+    "google-cloud-storage>=2.0.0",
     "pydantic>=2.0.0"
 ]
 
 [project.optional-dependencies]
+# aws and gcp are in the base install; the extras stay so `[gcp]` style pins resolve.
 aws = ["aioboto3>=11.0.0"]
 gcp = ["google-cloud-storage>=2.0.0"]
 # The async Blob client needs an async transport, and aiohttp is the one it supports.
@@ -37,6 +41,7 @@ dev = [
     "cloud-storage-manager[all]",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
+    "packaging>=23.0",
     "pytest-cov>=4.0.0",
     "ruff>=0.5.0"
 ]

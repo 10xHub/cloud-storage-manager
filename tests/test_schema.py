@@ -21,26 +21,31 @@ def test_provider_property_names_the_one_configured(factory, provider):
     config.validate_provider()
 
 
-def test_no_provider_is_rejected():
-    with pytest.raises(ValidationError, match="exactly one storage provider \\(got: none\\)"):
-        StorageConfig()
-
-
-def test_two_providers_are_rejected():
-    with pytest.raises(ValidationError, match="got: aws, gcp"):
-        StorageConfig(aws=aws_config().aws, gcp=gcp_config().gcp)
-
-
-def test_validator_returns_the_model_not_a_bool():
-    assert isinstance(aws_config(), StorageConfig)
-
-
-def test_legacy_helpers_report_a_config_mutated_after_validation():
-    config = aws_config()
-    config.aws = None
+def test_an_empty_config_constructs_as_in_0_1():
+    config = StorageConfig()
     assert config.has_valid_provider() is False
-    with pytest.raises(ValueError, match="exactly one storage provider"):
-        config.validate_provider()
+    assert config.validate_provider() is None
+
+
+def test_an_empty_config_has_no_provider_to_infer():
+    with pytest.raises(ValueError, match="got: none"):
+        _ = StorageConfig().provider
+
+
+def test_two_providers_construct_as_in_0_1():
+    config = StorageConfig(aws=aws_config().aws, gcp=gcp_config().gcp)
+    assert config.has_valid_provider() is True
+    assert config.validate_provider() is None
+
+
+def test_two_providers_are_ambiguous_only_when_inferred():
+    config = StorageConfig(aws=aws_config().aws, gcp=gcp_config().gcp)
+    with pytest.raises(ValueError, match="got: aws, gcp"):
+        _ = config.provider
+
+
+def test_model_validate_returns_the_model_not_a_bool():
+    assert isinstance(StorageConfig.model_validate({}), StorageConfig)
 
 
 def test_azure_accepts_account_key():

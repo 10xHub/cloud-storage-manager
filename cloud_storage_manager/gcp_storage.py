@@ -124,14 +124,25 @@ class GcpClientStorage(BaseCloudStorage):
             cloud_path: The object path in GCP bucket to delete.
 
         Returns:
-            True if deleted, False if the object did not exist.
+            True if deletion was successful.
 
         Raises:
-            DeleteError: If the deletion operation fails.
+            DeleteError: If the deletion operation fails, including a missing object.
         """
         logger.info(f"Deleting gs://{self.bucket_name}/{cloud_path}")
         try:
             return await asyncio.to_thread(self._delete_file, cloud_path)
+        except Exception as e:
+            logger.error(f"Deletion failed: {e}")
+            raise DeleteError(f"Failed to delete file from GCP: {e}") from e
+
+    async def delete_if_exists(self, cloud_path: str) -> bool:
+        """Delete a GCP object; False when it did not exist."""
+        logger.info(f"Deleting gs://{self.bucket_name}/{cloud_path} if it exists")
+        try:
+            return await asyncio.to_thread(self._delete_file, cloud_path)
+        except NotFound:
+            return False
         except Exception as e:
             logger.error(f"Deletion failed: {e}")
             raise DeleteError(f"Failed to delete file from GCP: {e}") from e
@@ -182,12 +193,10 @@ class GcpClientStorage(BaseCloudStorage):
             cloud_path: Object path in GCP bucket to delete.
 
         Returns:
-            True if deleted, False if the object did not exist.
+            True if deletion was successful.
         """
-        try:
-            self.bucket.blob(cloud_path).delete()
-        except NotFound:
-            return False
+        blob = self.bucket.blob(cloud_path)
+        blob.delete()
         logger.debug(f"Successfully deleted gs://{self.bucket_name}/{cloud_path}")
         return True
 

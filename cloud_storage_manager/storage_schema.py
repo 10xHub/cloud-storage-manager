@@ -38,31 +38,36 @@ class AzureConfig(BaseModel):
 
 
 class StorageConfig(BaseModel):
+    """Holds one config per cloud.
+
+    Construction accepts any combination, as 0.1.x did: a caller picks the provider explicitly
+    with CloudStorageFactory.get_storage(provider, config). Only `provider` and
+    `CloudStorageFactory.from_config`, which have to infer it, need exactly one.
+    """
+
     aws: AwsConfig | None = Field(None, description="AWS configuration")
     gcp: GcpConfig | None = Field(None, description="GCP configuration")
     azure: AzureConfig | None = Field(None, description="Azure Blob configuration")
-
-    @model_validator(mode="after")
-    def _exactly_one_provider(self) -> "StorageConfig":
-        configured = self._configured()
-        if len(configured) != 1:
-            names = ", ".join(p.value for p in configured) or "none"
-            raise ValueError(f"Configure exactly one storage provider (got: {names})")
-        return self
 
     def _configured(self) -> list[StorageProvider]:
         return [p for p in StorageProvider if getattr(self, p.value) is not None]
 
     @property
     def provider(self) -> StorageProvider:
-        """The one provider this config sets."""
-        return self._configured()[0]
+        """The one provider this config sets.
+
+        Raises:
+            ValueError: If no provider, or more than one, is configured.
+        """
+        configured = self._configured()
+        if len(configured) != 1:
+            names = ", ".join(p.value for p in configured) or "none"
+            raise ValueError(f"Configure exactly one storage provider (got: {names})")
+        return configured[0]
 
     def has_valid_provider(self) -> bool:
-        """Kept for 0.1.x callers; construction already guarantees exactly one provider."""
-        return len(self._configured()) == 1
+        """True when at least one provider is configured, as in 0.1.x."""
+        return bool(self._configured())
 
     def validate_provider(self) -> None:
-        """Kept for 0.1.x callers; construction already guarantees exactly one provider."""
-        if not self.has_valid_provider():
-            raise ValueError("Configure exactly one storage provider")
+        """Kept for 0.1.x callers, where it never raised; it still does not."""

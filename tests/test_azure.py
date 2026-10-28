@@ -154,15 +154,25 @@ async def test_delete_existing_returns_true(service, storage):
     service.blob.delete_blob.assert_awaited_once_with()
 
 
-async def test_delete_missing_returns_false(service, storage):
+async def test_delete_missing_raises_delete_error_like_gcp(service, storage):
     service.blob.delete_blob.side_effect = ResourceNotFoundError("gone")
-    assert await storage.delete("a") is False
+    with pytest.raises(DeleteError, match="does not exist"):
+        await storage.delete("a")
 
 
 async def test_delete_failure(service, storage):
     service.blob.delete_blob.side_effect = HttpResponseError("locked")
     with pytest.raises(DeleteError, match="locked"):
         await storage.delete("a")
+
+
+async def test_delete_if_exists_existing_returns_true(service, storage):
+    assert await storage.delete_if_exists("a") is True
+
+
+async def test_delete_if_exists_missing_returns_false(service, storage):
+    service.blob.delete_blob.side_effect = ResourceNotFoundError("gone")
+    assert await storage.delete_if_exists("a") is False
 
 
 def sas_query(url: str) -> dict[str, str]:

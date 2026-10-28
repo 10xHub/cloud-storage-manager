@@ -5,6 +5,19 @@ from .storage_schema import StorageConfig, StorageProvider
 
 __all__ = ["CloudStorageFactory", "StorageProvider"]
 
+# 0.1.x imported these two classes here eagerly; they stay importable from this module, but load
+# on first access so `import cloud_storage_manager` pulls in no cloud SDK.
+_LEGACY_CLASSES = {
+    "AWSClientStorage": ".aws_s3_storage",
+    "GcpClientStorage": ".gcp_storage",
+}
+
+
+def __getattr__(name: str):
+    if name in _LEGACY_CLASSES:
+        return getattr(import_module(_LEGACY_CLASSES[name], __package__), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
 
 class CloudStorageFactory:
     """Factory class for creating cloud storage client instances.

@@ -13,8 +13,9 @@ def guess_content_type(path: Path | str) -> str | None:
 class BaseCloudStorage(ABC):
     """Abstract base class for cloud storage operations.
 
-    This class defines the interface for cloud storage operations that should be
-    implemented by specific cloud provider classes.
+    Only the three 0.1.x operations (upload, delete, get_public_url) are abstract, so a
+    subclass written against 0.1.x still instantiates. The operations added in 0.2.0 raise
+    NotImplementedError until a subclass provides them; every built-in provider does.
 
     Attributes:
         config (StorageConfig): Configuration object for the cloud storage.
@@ -28,11 +29,12 @@ class BaseCloudStorage(ABC):
         """
         self.config = config
 
+    def _unsupported(self, operation: str) -> NotImplementedError:
+        return NotImplementedError(f"{type(self).__name__} does not implement {operation}")
+
     @abstractmethod
     async def upload(self, file_path: Path | str, cloud_path: str) -> str:
         """Upload a local file to cloud storage.
-
-        The content type is guessed from the file name, so a video plays in a browser.
 
         Args:
             file_path (Path | str): Local path to the file to be uploaded.
@@ -45,7 +47,6 @@ class BaseCloudStorage(ABC):
             UploadError: If the upload fails.
         """
 
-    @abstractmethod
     async def upload_bytes(
         self, data: bytes, cloud_path: str, content_type: str | None = None
     ) -> str:
@@ -62,8 +63,8 @@ class BaseCloudStorage(ABC):
         Raises:
             UploadError: If the upload fails.
         """
+        raise self._unsupported("upload_bytes")
 
-    @abstractmethod
     async def download_bytes(self, cloud_path: str) -> bytes:
         """Download an object's content.
 
@@ -77,8 +78,8 @@ class BaseCloudStorage(ABC):
             NotFoundError: If the object does not exist.
             DownloadError: If the download fails for any other reason.
         """
+        raise self._unsupported("download_bytes")
 
-    @abstractmethod
     async def list_objects(self, prefix: str) -> list[str]:
         """List the names of every object under a prefix.
 
@@ -91,8 +92,8 @@ class BaseCloudStorage(ABC):
         Raises:
             ListError: If the listing fails.
         """
+        raise self._unsupported("list_objects")
 
-    @abstractmethod
     async def list_object_sizes(self, prefix: str) -> dict[str, int]:
         """Map every object under a prefix to its size in bytes.
 
@@ -105,13 +106,31 @@ class BaseCloudStorage(ABC):
         Raises:
             ListError: If the listing fails.
         """
+        raise self._unsupported("list_object_sizes")
 
     @abstractmethod
     async def delete(self, cloud_path: str) -> bool:
-        """Delete a file from cloud storage.
+        """Delete a file from cloud storage, as 0.1.x did.
+
+        A missing object gets each cloud's own answer, unchanged since 0.1.x: GCP and Azure
+        raise DeleteError, S3 deletes nothing and returns True. delete_if_exists gives the
+        same answer on every cloud.
 
         Args:
             cloud_path (str): Path to the file in cloud storage to be deleted.
+
+        Returns:
+            bool: True once the delete request succeeded.
+
+        Raises:
+            DeleteError: If the deletion fails.
+        """
+
+    async def delete_if_exists(self, cloud_path: str) -> bool:
+        """Delete an object, reporting whether it was there, the same way on every cloud.
+
+        Args:
+            cloud_path (str): Path to the object in cloud storage.
 
         Returns:
             bool: True if the object was deleted, False if it did not exist.
@@ -119,6 +138,7 @@ class BaseCloudStorage(ABC):
         Raises:
             DeleteError: If the deletion fails for any other reason.
         """
+        raise self._unsupported("delete_if_exists")
 
     @abstractmethod
     async def get_public_url(self, cloud_path: str, expiration: int = 3600) -> str:
