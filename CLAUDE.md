@@ -9,7 +9,7 @@ Storage. Published on PyPI as `10x-cloud-storage-manager`, imported as `cloud_st
 - `aioboto3` (S3), `google-cloud-storage` (GCS), `azure-storage-blob` + `aiohttp` (Azure, extra)
 - Pydantic v2 for config
 - pytest, pytest-asyncio, pytest-cov (100% gate), ruff
-- GitHub Actions; PyPI Trusted Publishing
+- GitHub Actions; PyPI API token in the `pypi` environment
 
 ## Architecture
 A library, not a service. `BaseCloudStorage` (ABC) defines the interface; each provider
@@ -46,8 +46,9 @@ uvx --from actionlint-py actionlint
 - `dev` is the default branch; feature PRs target it.
 - Merging into `prod` releases. Bump `[project].version` in the PR to prod; CI blocks the PR if
   PyPI already has that version.
-- The PyPI side trusts `10xHub/cloud-storage-manager`, workflow `release.yml`, environment
-  `pypi`. Renaming any of these breaks publishing until PyPI's trusted publisher is updated.
+- `prod` is protected: changes go through a PR with passing `test` checks and the version bump.
+- `release.yml` publishes with secret `PYPI_API_TOKEN` on the `pypi` environment (deploys from
+  `prod` only). Releases come only from CI; never `twine upload` by hand.
 
 ## Environment Setup
 None for tests. At runtime, credentials come from `StorageConfig` or each SDK's default chain.

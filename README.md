@@ -176,7 +176,8 @@ Tests mock every cloud SDK and never call a real cloud.
   `v<version>` GitHub release (`.github/workflows/release.yml`).
 - Bump `[project].version` in `pyproject.toml` in the PR to `prod`. CI fails the PR if PyPI
   already has that version.
-- Publishing uses PyPI Trusted Publishing (OIDC): no PyPI token is stored in GitHub.
+- Publishing uses the `PYPI_API_TOKEN` secret on the `pypi` GitHub environment, which only
+  the `prod` branch can deploy to. Never upload to PyPI by hand.
 
 ## License
 

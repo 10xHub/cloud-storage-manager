@@ -45,16 +45,14 @@ jobs:
           name: dist
           path: dist/
 
-  # Trusted Publishing: PyPI trusts this repo + workflow + environment over OIDC, so no API
-  # token is stored anywhere. The publish step must live here, not in a reusable workflow.
+  # The PyPI token is a secret on the `pypi` environment, and that environment only deploys from
+  # prod, so no other branch or job can read it.
   publish:
     needs: [version, build]
     runs-on: ubuntu-latest
     environment:
       name: pypi
       url: https://pypi.org/project/${{ needs.version.outputs.name }}/${{ needs.version.outputs.version }}/
-    permissions:
-      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -63,6 +61,10 @@ jobs:
       # Pinned by SHA: this job holds the token that can publish, so a moved tag must not change
       # what runs here. Dependabot bumps it.
       - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          # Attestations need Trusted Publishing; with a token they can only fail the upload.
+          attestations: false
 
   github-release:
     needs: [version, publish]
