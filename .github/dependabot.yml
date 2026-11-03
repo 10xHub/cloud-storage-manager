@@ -1,0 +1,8 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    # dev is the integration branch; the default would be the repo default, made explicit here.
+    target-branch: dev
+    schedule:
+      interval: weekly

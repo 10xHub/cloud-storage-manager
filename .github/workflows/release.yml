@@ -60,7 +60,9 @@ jobs:
         with:
           name: dist
           path: dist/
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      # Pinned by SHA: this job holds the token that can publish, so a moved tag must not change
+      # what runs here. Dependabot bumps it.
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
 
   github-release:
     needs: [version, publish]
