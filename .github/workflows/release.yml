@@ -1,0 +1,82 @@
+name: release
+
+on:
+  push:
+    branches: [prod]
+
+# Two quick merges to prod must not race each other to PyPI.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      name: ${{ steps.status.outputs.name }}
+      version: ${{ steps.status.outputs.version }}
+      published: ${{ steps.status.outputs.published }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: status
+        uses: ./.github/actions/version-status
+
+  test:
+    needs: version
+    if: needs.version.outputs.published == 'false'
+    uses: ./.github/workflows/test.yml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install build twine
+      - run: python -m build
+      - run: twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # The PyPI token is a secret on the `pypi` environment, and that environment only deploys from
+  # prod, so no other branch or job can read it.
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/${{ needs.version.outputs.name }}/${{ needs.version.outputs.version }}/
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      # Pinned by SHA: this job holds the token that can publish, so a moved tag must not change
+      # what runs here. Dependabot bumps it.
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086 # v1.14.3
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          # Attestations need Trusted Publishing; with a token they can only fail the upload.
+          attestations: false
+
+  github-release:
+    needs: [version, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.version.outputs.version }}
+        run: gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$TAG" --generate-notes

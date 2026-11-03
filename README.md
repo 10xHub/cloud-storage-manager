@@ -17,10 +17,13 @@ calls the same methods everywhere; switching cloud is a configuration change.
 The base install covers AWS S3 and Google Cloud Storage, as 0.1.x did. Azure is an extra:
 
 ```bash
-pip install cloud-storage-manager           # AWS S3 + Google Cloud Storage
-pip install "cloud-storage-manager[azure]"  # adds Azure Blob Storage
-pip install "cloud-storage-manager[all]"    # all three
+pip install 10x-cloud-storage-manager           # AWS S3 + Google Cloud Storage
+pip install "10x-cloud-storage-manager[azure]"  # adds Azure Blob Storage
+pip install "10x-cloud-storage-manager[all]"    # all three
 ```
+
+The import name is still `cloud_storage_manager`. From 0.2.0 the package is published as
+`10x-cloud-storage-manager`; `cloud-storage-manager` on PyPI stops at 0.1.2.
 
 Requires Python 3.10+.
 
@@ -136,7 +139,14 @@ except NotFoundError:
 
 ## Upgrading from 0.1.x
 
-Nothing to change: every 0.1.x call behaves as before.
+Change only the requirement: swap `cloud-storage-manager` for `10x-cloud-storage-manager`
+(uninstall the old package first, since both ship the `cloud_storage_manager` module). Your code
+does not change: every 0.1.x call behaves as before.
+
+```bash
+pip uninstall -y cloud-storage-manager
+pip install 10x-cloud-storage-manager
+```
 
 - The base install pulls the same packages as 0.1.x; Azure is the `[azure]` extra.
 - `StorageConfig` accepts every combination 0.1.x accepted.
@@ -158,6 +168,16 @@ ruff check . && ruff format --check .
 ```
 
 Tests mock every cloud SDK and never call a real cloud.
+
+### Branches and releases
+
+- `dev` is the default branch. Open feature PRs against it.
+- `prod` is the release branch. **Every merge into `prod` publishes to PyPI** and creates a
+  `v<version>` GitHub release (`.github/workflows/release.yml`).
+- Bump `[project].version` in `pyproject.toml` in the PR to `prod`. CI fails the PR if PyPI
+  already has that version.
+- Publishing uses the `PYPI_API_TOKEN` secret on the `pypi` GitHub environment, which only
+  the `prod` branch can deploy to. Never upload to PyPI by hand.
 
 ## License
 

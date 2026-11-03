@@ -3,7 +3,7 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "cloud-storage-manager"
+name = "10x-cloud-storage-manager"
 version = "0.2.0"
 description = "A unified async interface for AWS S3, Google Cloud Storage and Azure Blob Storage"
 authors = [{name = "MUTHARASU A", email = "mutharasu39@gmail.com"}]
@@ -23,7 +23,7 @@ classifiers = [
     "Framework :: AsyncIO",
     "Topic :: Software Development :: Libraries :: Python Modules"
 ]
-# The 0.1.x base install, unchanged, so an unpinned `cloud-storage-manager` keeps working.
+# The 0.1.x base install, unchanged, so code moving off `cloud-storage-manager` needs no new deps.
 dependencies = [
     "aioboto3>=11.0.0",
     "google-cloud-storage>=2.0.0",
@@ -36,9 +36,9 @@ aws = ["aioboto3>=11.0.0"]
 gcp = ["google-cloud-storage>=2.0.0"]
 # The async Blob client needs an async transport, and aiohttp is the one it supports.
 azure = ["azure-storage-blob>=12.19.0", "aiohttp>=3.8.0"]
-all = ["cloud-storage-manager[aws,gcp,azure]"]
+all = ["10x-cloud-storage-manager[aws,gcp,azure]"]
 dev = [
-    "cloud-storage-manager[all]",
+    "10x-cloud-storage-manager[all]",
     "pytest>=7.0.0",
     "pytest-asyncio>=0.23.0",
     "packaging>=23.0",
@@ -47,8 +47,8 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/10XScale-in/cloud-storage-manager"
-"Bug Tracker" = "https://github.com/10XScale-in/cloud-storage-manager/issues"
+"Homepage" = "https://github.com/10xHub/cloud-storage-manager"
+"Bug Tracker" = "https://github.com/10xHub/cloud-storage-manager/issues"
 
 [tool.setuptools.packages.find]
 include = ["cloud_storage_manager*"]

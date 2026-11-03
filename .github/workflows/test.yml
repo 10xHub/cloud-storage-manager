@@ -2,8 +2,10 @@ name: test
 
 on:
   push:
-    branches: [main]
+    # prod is left out: release.yml runs this same workflow before publishing.
+    branches: [dev]
   pull_request:
+  workflow_call:
 
 jobs:
   test:
@@ -19,3 +21,20 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check . && ruff format --check .
       - run: pytest --cov --cov-report=term-missing --cov-fail-under=100
+
+  # Every merge to prod publishes, and PyPI never accepts the same version twice, so a PR
+  # into prod without a version bump is caught here instead of as a failed release.
+  version-bumped:
+    if: github.event_name == 'pull_request' && github.base_ref == 'prod'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        uses: ./.github/actions/version-status
+      - if: steps.version.outputs.published == 'true'
+        env:
+          NAME: ${{ steps.version.outputs.name }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "::error::${NAME} ${VERSION} is already on PyPI. Bump [project].version in pyproject.toml."
+          exit 1
