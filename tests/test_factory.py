@@ -1,9 +1,11 @@
+import re
 import sys
 from unittest.mock import patch
 
 import pytest
 
 from cloud_storage_manager import CloudStorageFactory, StorageConfig, StorageProvider
+from cloud_storage_manager._distribution import DISTRIBUTION_NAME
 from cloud_storage_manager.aws_s3_storage import AWSClientStorage
 from cloud_storage_manager.azure_storage import AzureBlobStorage
 from cloud_storage_manager.gcp_storage import GcpClientStorage
@@ -39,7 +41,7 @@ def test_unsupported_provider_raises():
 def test_missing_extra_names_the_install_command():
     blocked = {"azure.storage.blob": None, "cloud_storage_manager.azure_storage": None}
     with patch.dict(sys.modules, blocked):
-        with pytest.raises(ImportError, match=r"cloud-storage-manager\[azure\]"):
+        with pytest.raises(ImportError, match=rf"{re.escape(DISTRIBUTION_NAME)}\[azure\]"):
             CloudStorageFactory.get_storage(StorageProvider.AZURE, azure_key_config())
 
 
