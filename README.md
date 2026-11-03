@@ -169,6 +169,15 @@ ruff check . && ruff format --check .
 
 Tests mock every cloud SDK and never call a real cloud.
 
+### Branches and releases
+
+- `dev` is the default branch. Open feature PRs against it.
+- `prod` is the release branch. **Every merge into `prod` publishes to PyPI** and creates a
+  `v<version>` GitHub release (`.github/workflows/release.yml`).
+- Bump `[project].version` in `pyproject.toml` in the PR to `prod`. CI fails the PR if PyPI
+  already has that version.
+- Publishing uses PyPI Trusted Publishing (OIDC): no PyPI token is stored in GitHub.
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

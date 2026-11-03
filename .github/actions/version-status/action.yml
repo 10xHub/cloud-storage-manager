@@ -1,0 +1,35 @@
+name: version-status
+description: Read the package name and version from pyproject.toml and report whether PyPI already has that version.
+
+outputs:
+  name:
+    description: Distribution name from pyproject.toml
+    value: ${{ steps.status.outputs.name }}
+  version:
+    description: Version from pyproject.toml
+    value: ${{ steps.status.outputs.version }}
+  published:
+    description: "'true' if this version is already on PyPI"
+    value: ${{ steps.status.outputs.published }}
+
+runs:
+  using: composite
+  steps:
+    - id: status
+      shell: bash
+      run: |
+        read -r name version < <(python3 -c "import tomllib; p = tomllib.load(open('pyproject.toml', 'rb'))['project']; print(p['name'], p['version'])")
+        code=$(curl -s -o /dev/null -w '%{http_code}' "https://pypi.org/pypi/${name}/${version}/json")
+        # Anything but a clean 200/404 (PyPI outage, rate limit) must stop the run rather than
+        # be read as "not published" and trigger an upload.
+        case "$code" in
+          200) published=true ;;
+          404) published=false ;;
+          *) echo "::error::PyPI returned HTTP $code for ${name} ${version}"; exit 1 ;;
+        esac
+        echo "${name} ${version} published=${published}"
+        {
+          echo "name=${name}"
+          echo "version=${version}"
+          echo "published=${published}"
+        } >> "$GITHUB_OUTPUT"

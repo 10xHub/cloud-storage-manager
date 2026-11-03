@@ -47,8 +47,8 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/10XScale-in/cloud-storage-manager"
-"Bug Tracker" = "https://github.com/10XScale-in/cloud-storage-manager/issues"
+"Homepage" = "https://github.com/10xHub/cloud-storage-manager"
+"Bug Tracker" = "https://github.com/10xHub/cloud-storage-manager/issues"
 
 [tool.setuptools.packages.find]
 include = ["cloud_storage_manager*"]
