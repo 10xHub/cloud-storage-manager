@@ -1,5 +1,6 @@
 from importlib import import_module
 
+from ._distribution import DISTRIBUTION_NAME
 from .base_storage import BaseCloudStorage
 from .storage_schema import StorageConfig, StorageProvider
 
@@ -23,7 +24,7 @@ class CloudStorageFactory:
     """Factory class for creating cloud storage client instances.
 
     Each provider module is imported only when it is asked for, so installing a
-    single cloud's extra (``cloud-storage-manager[gcp]``) is enough to use it.
+    single cloud's extra (``10x-cloud-storage-manager[gcp]``) is enough to use it.
 
     Example:
         >>> config = StorageConfig(gcp=GcpConfig(...))
@@ -61,7 +62,7 @@ class CloudStorageFactory:
         except ImportError as e:
             raise ImportError(
                 f"{provider.value} storage needs its extra: "
-                f"pip install 'cloud-storage-manager[{provider.value}]'"
+                f"pip install '{DISTRIBUTION_NAME}[{provider.value}]'"
             ) from e
         return getattr(module, class_name)(config)
 

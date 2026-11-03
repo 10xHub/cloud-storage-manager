@@ -7,6 +7,7 @@ from packaging.requirements import Requirement
 
 import cloud_storage_manager
 from cloud_storage_manager import BaseCloudStorage, StorageConfig
+from cloud_storage_manager._distribution import DISTRIBUTION_NAME
 from cloud_storage_manager.base_storage import guess_content_type
 
 
@@ -33,7 +34,7 @@ def test_guess_content_type():
 def test_base_install_requires_what_0_1_did():
     base = {
         Requirement(r).name
-        for r in metadata.requires("cloud-storage-manager")
+        for r in metadata.requires(DISTRIBUTION_NAME)
         if Requirement(r).marker is None
     }
     assert base == {"aioboto3", "google-cloud-storage", "pydantic"}
@@ -42,7 +43,7 @@ def test_base_install_requires_what_0_1_did():
 def test_azure_stays_an_optional_extra():
     azure = [
         Requirement(r).name
-        for r in metadata.requires("cloud-storage-manager")
+        for r in metadata.requires(DISTRIBUTION_NAME)
         if Requirement(r).marker is not None and "azure" in str(Requirement(r).marker)
     ]
     assert "azure-storage-blob" in azure
